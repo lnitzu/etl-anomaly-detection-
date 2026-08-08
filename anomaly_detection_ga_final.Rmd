@@ -25,30 +25,26 @@ This article introduces an alternative approach to univariate data validation: t
 
 To demonstrate this method, we initialize and evaluate an operational tracking stream dataset detailing daily pipeline ingestion volumes. 
 
-```{r data_preparation, echo=FALSE}
+```{r data_preparation, echo=T}
 library(ggplot2)
 library(ggthemes)
 
 # Mock pipeline data generation configuration matching real-world behavior
 set.seed(42)
 rdata <- data.frame(
-  CurrNumber = round(runif(100, 45000, 85000), 0),
-  CreatedOn = seq(as.POSIXct("2024-01-01"), by="2 days", length.out=100)
+  CrtRowCount = round(runif(100, 45000, 85000), 0),
+  TimeStamp = seq(as.POSIXct("2024-01-01"), by="2 days", length.out=100)
 )
 
 # Inject controlled pipeline failures (Anomalies)
-rdata$CurrNumber[15] <- 13980  # Low level dropout
-rdata$CurrNumber[42] <- 110287 # Extreme peak surge
-rdata$CurrNumber[78] <- 106365 # Secondary peak surge
+rdata$CrtRowCount[15] <- 13980  # Low level dropout
+rdata$CrtRowCount[42] <- 110287 # Extreme peak surge
+rdata$CrtRowCount[78] <- 106365 # Secondary peak surge
 
-# Field normalization matching structural parameters
-colnames(rdata)[colnames(rdata) == 'CurrNumber'] <- 'CrtRowCount'
-colnames(rdata)[colnames(rdata) == 'CreatedOn'] <- 'TimeStamp'
 
-# Inject original noise mapping logic silently
-rdata$CrtRowCount <- rdata$CrtRowCount + rnorm(nrow(rdata), 5, 30)
-rdata$CrtRowCount <- round(rdata$CrtRowCount, 0)
+# save a copy of the original dataset
 roriginal <- rdata
+
 ```
 
 Below is a baseline time-series visualization generated using `ggplot2`, plotting `CrtRowCount` against the `TimeStamp` vector:
@@ -89,9 +85,7 @@ To bypass the distortion problem mentioned earlier, we implement a **destructive
 
 The script below bundles this iterative evolutionary search architecture into a clean, single-pass processing loop utilizing the R `GA` package.
 
-```{r Reset environment matrices, echo=F}
-rdata <- roriginal
-```
+
 
 ```{r core_algorithm_execution}
 library(GA)
@@ -164,26 +158,26 @@ While a simple MAD calculation handles basic univariate anomalies faster, it ope
 
 Evaluating the extraction array demonstrates that the GA architecture successfully separated data pipeline spikes from system baseline behavior:
 
-```{r hidden_restore, echo=FALSE}
+```{r validation_setup, echo=FALSE}
 # This hides the data reset code completely from the final document layout
 rdata <- roriginal
 rdata$Anomaly <- FALSE
 rdata[outliers, ]$Anomaly <- TRUE
+
 ```
 
-```{r validation_visualization, fig.height=4, fig.width=6, fig.align='center'}
+```{r validation_visualization, fig.height=3.8, fig.width=6, fig.align='center'}
 # Highlight localized anomalies back onto original dataset
-
 ggplot() +
   geom_point(data = rdata, aes(x = TimeStamp, y = CrtRowCount, colour = Anomaly)) +
   geom_text(data = rdata[outliers, ],
             mapping = aes(TimeStamp, CrtRowCount, 
                           label = as.character(round(CrtRowCount, 0))),
             size = 2.5, vjust = -1.5, hjust = 0.5, inherit.aes = FALSE) +
-  scale_y_continuous(limits = c(0, 130000), labels = scales::comma)+
+  scale_y_continuous(limits = c(0, 130000), labels = scales::comma) +
   labs(title = "Final GA Classifications: Anomalies Identified",
        x = "Timestamp", y = "Row Count Volume") +
-  ggthemes::theme_gdocs()+
+  ggthemes::theme_gdocs() +
   theme(plot.title = element_text(size = 11, face = "bold")) 
 ```
 
